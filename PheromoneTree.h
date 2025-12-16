@@ -12,12 +12,16 @@ struct pheromoneTree {
         pheromoneTree is a complete binary tree stored in an array.
         The leaves represent the pheromone levels of the nodes in the graph.
         Internal nodes store the sum of pheromone levels of their children.
+        
+        MMAS: Uses tau_min and tau_max bounds to prevent stagnation.
     */
 
     int n;                      // number of leaves (nodes in the graph)
     int tree_size;              // total size of the tree array  
     float *pheromones;          // array storing pheromone levels
     float evaporation_rate;     // rate at which pheromones evaporate
+    float tau_min;              // minimum pheromone level (MMAS)
+    float tau_max;              // maximum pheromone level (MMAS)
 
     /*
         Constructor: initializes the pheromone tree as a deep copy of another tree.
@@ -27,14 +31,16 @@ struct pheromoneTree {
         tree_size = other.tree_size;
         srand(RANDOM_SEED);
         evaporation_rate = other.evaporation_rate;
+        tau_min = other.tau_min;
+        tau_max = other.tau_max;
         pheromones = new float[tree_size];
         memcpy(pheromones, other.pheromones, tree_size * sizeof(float));
     }
     /* 
         Constructor: initializes the pheromone tree with n leaves and sets
-        the evaporation rate. All leaves start with a pheromone level of 1.
+        the evaporation rate. MMAS: All leaves start at tau_max.
     */
-    pheromoneTree(int n , float evaporation_rate) {
+    pheromoneTree(int n, float evaporation_rate, float tau_min = 1.0f, float tau_max = 100.0f) {
         // calculate tree size 
         int i = 1;
         while( i < n) {
@@ -44,12 +50,14 @@ struct pheromoneTree {
 
         this->n = n;
         this->evaporation_rate = evaporation_rate;
+        this->tau_min = tau_min;
+        this->tau_max = tau_max;
         
-        // initialize pheromone levels
+        // initialize pheromone levels at tau_max (MMAS)
         pheromones = new float[tree_size];
         memset(pheromones, 0, tree_size * sizeof(float));
         for (int i = getLeaf(0); i <= getLeaf(n - 1); i++) {
-            pheromones[i] = 1.0f;
+            pheromones[i] = tau_max;
         }
         propagateAll();
     }
@@ -66,6 +74,8 @@ struct pheromoneTree {
             n = other.n;
             tree_size = other.tree_size;
             evaporation_rate = other.evaporation_rate;
+            tau_min = other.tau_min;
+            tau_max = other.tau_max;
             pheromones = new float[tree_size];
             memcpy(pheromones, other.pheromones, tree_size * sizeof(float));
         }
@@ -75,23 +85,30 @@ struct pheromoneTree {
     /*
         Evaporate: implement the disipation of pheromones in all nodes.
         This is done by multiplying the pheromone level of each node by (1 - evaporation_rate).
+        MMAS: Clamp pheromones to [tau_min, tau_max] bounds.
         Then propagate the changes up the tree.
     */
     void evaporate() {
         for (int i = getLeaf(0); i <= getLeaf(n - 1); i++) {
             pheromones[i] = pheromones[i] * (1.0f - evaporation_rate);
-            if (pheromones[i] < 1.0f) {
-                pheromones[i] = 1.0f; 
+            // MMAS: clamp to tau_min
+            if (pheromones[i] < tau_min) {
+                pheromones[i] = tau_min; 
             }
         }
         propagateAll();
     }
     /*
         Deposit: add pheromones to a node and propagate the changes up the tree.
+        MMAS: Clamps the pheromone level to tau_max.
     */
     void deposit(int node, float amount) {
         node = getLeaf(node);
         pheromones[node] += amount;
+        // MMAS: clamp to tau_max
+        if (pheromones[node] > tau_max) {
+            pheromones[node] = tau_max;
+        }
         propagate(node);
     }
     /*
@@ -116,11 +133,22 @@ struct pheromoneTree {
     }
     /*
         SetPheromone: set the pheromone level of a node to a specific value and propagate the changes up the tree.
+        MMAS: Clamps the pheromone level to [tau_min, tau_max].
     */
     void setPheromone(int node, float value) {
         node = getLeaf(node);
+        // MMAS: clamp to bounds
+        if (value < tau_min) value = tau_min;
+        if (value > tau_max) value = tau_max;
         pheromones[node] = value;
         propagate(node);
+    }
+
+    /*
+        GetPheromone: returns the pheromone level of a node (for use in ant selection).
+    */
+    float getPheromone(int node) {
+        return pheromones[getLeaf(node)];
     }
 
     private:
@@ -183,54 +211,6 @@ struct pheromoneTree {
 
     public:
 
-    /*
-        maxSearch: search the node with the highest pheromone level.
-
-    */
-    int maxSearch(int father=0){
-
-        // if both children are 0 pheromone, return -1
-        if (pheromones[getLeftChild(father)] == 0.0f && pheromones[getRightChild(father)] == 0.0f) {
-            return -1;
-        }
-        // Find the maximum pheromone child till leaf
-        while (!isLeaf(father)) {
-            if (pheromones[getLeftChild(father)] < pheromones[getRightChild(father)]){
-                father = getRightChild(father);
-            }else{
-                father = getLeftChild(father);
-            }
-        }
-
-        return getNodeFromLeaf(father);
-    }
-    /*
-        randSearch: selects a random way down the tree to select a node.
-    */
-    int randSearch(int father=0){
-
-        // if both children are 0 pheromone, return -1
-        if (pheromones[getLeftChild(father)] == 0.0f && pheromones[getRightChild(father)] == 0.0f) {
-            return -1;
-        }
-
-        // random walk down the tree
-        while (!isLeaf(father)) {
-            // if both children have pheromones, choose randomly
-            if (pheromones[getLeftChild(father)] != 0.0f && pheromones[getRightChild(father)] != 0.0f) {
-                father = getLeftChild(father) + rand()%2;
-            } else {
-                // if one child is 0 pheromone, go to the other
-                if (pheromones[getLeftChild(father)] != 0.0f ) {
-                    father = getLeftChild(father);
-                } else {
-                    father = getRightChild(father);
-                }
-            }
-        }
-
-        return getNodeFromLeaf(father);
-    }
     /*
         PondRandSearch: selects a random way down the tree but biased by pheromone levels.
     */

@@ -9,13 +9,16 @@
 
 
 int main(int argc, char *argv[]) {
-    // Default parameters
+    // Default MMAS parameters
     char *path = nullptr;
-    double time_limit = 10.0; // default time limit seconds
-    float evaporation_rate = 0.01f; // default evaporation rate
-    float deposit_amount = 10.0f; // default deposit amount
-    bool proportional_deposit_type = true; // default deposit type
-    bool verbose = false; // verbose flag
+    double time_limit = 10.0;       // default time limit seconds
+    int m = 10;                     // number of ants per iteration
+    float alpha = 1.0f;             // pheromone influence exponent
+    float beta = 2.0f;              // heuristic influence exponent
+    float rho = 0.02f;              // evaporation rate
+    float tau_min = 1.0f;           // MMAS: minimum pheromone level
+    float tau_max = 100.0f;         // MMAS: maximum pheromone level
+    bool verbose = false;           // verbose flag
 
     // Parse required arguments
     for (int i = 1; i < argc; i++) {
@@ -26,14 +29,18 @@ int main(int argc, char *argv[]) {
 
     // Validate parameters
     if (path == nullptr) {
-        fprintf(stderr, "Usage: %s -i <path> [-t <time_limit_seconds>] [-e <evaporation_rate>] [-d <deposit_amount>] [-p <proportional_deposit_type>] [-v]\n", argv[0]);
-        fprintf(stderr, "\nParameters:\n");
-        fprintf(stderr, "  -i <path>                : Path to the graph instance/s file/directory (required)\n");
-        fprintf(stderr, "  -t <time_limit_seconds>  : Maximum execution time in seconds (default: %.2f)\n", time_limit);
-        fprintf(stderr, "  -e <evaporation_rate>    : Pheromone evaporation rate (default: %f)\n", evaporation_rate);
-        fprintf(stderr, "  -d <deposit_amount>      : Pheromone deposit amount (default: %.2f)\n", deposit_amount);
-        fprintf(stderr, "  -p <deposit_type>        : Pheromone deposit type: 'proportional' or 'fixed' (default: proportional = %s)\n", proportional_deposit_type? "true" : "false");
-        fprintf(stderr, "  -v                       : Verbose output for improvements during search (On single file case)\n");
+        fprintf(stderr, "Usage: %s -i <path> [-t <time>] [-m <ants>] [-a <alpha>] [-b <beta>] [-r <rho>] [-min <tau_min>] [-max <tau_max>] [-v]\n", argv[0]);
+        fprintf(stderr, "\nMandatory:\n");
+        fprintf(stderr, "  -i <path>      : Path to graph instance file/directory (required)\n");
+        fprintf(stderr, "\nMAS Parameters:\n");
+        fprintf(stderr, "  -t <time>      : Time limit in seconds (default: %.2f)\n", time_limit);
+        fprintf(stderr, "  -m <ants>      : Number of ants per iteration (default: %d)\n", m);
+        fprintf(stderr, "  -a <alpha>     : Pheromone influence exponent (default: %.2f)\n", alpha);
+        fprintf(stderr, "  -b <beta>      : Heuristic influence exponent (default: %.2f)\n", beta);
+        fprintf(stderr, "  -r <rho>       : Evaporation rate (default: %.2f)\n", rho);
+        fprintf(stderr, "  -min <tau_min> : Minimum pheromone level (default: %.2f)\n", tau_min);
+        fprintf(stderr, "  -max <tau_max> : Maximum pheromone level (default: %.2f)\n", tau_max);
+        fprintf(stderr, "  -v             : Verbose output\n");
         return 1;
     }
 
@@ -41,19 +48,18 @@ int main(int argc, char *argv[]) {
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-t") == 0 && i + 1 < argc) {
             time_limit = atof(argv[++i]);
-        } else if (strcmp(argv[i], "-e") == 0 && i + 1 < argc) {
-            evaporation_rate = atof(argv[++i]);
-        } else if (strcmp(argv[i], "-d") == 0 && i + 1 < argc) {
-            deposit_amount = atof(argv[++i]);
-        } else if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) {
-            if (strcmp(argv[++i], "proportional") == 0) {
-                proportional_deposit_type = true;
-            } else if (strcmp(argv[i], "fixed") == 0) {
-                proportional_deposit_type = false;
-            } else {
-                fprintf(stderr, "Error: Invalid deposit type '%s'. Use 'proportional' or 'fixed'.\n", argv[i]);
-                return 1;
-            }
+        } else if (strcmp(argv[i], "-m") == 0 && i + 1 < argc) {
+            m = atoi(argv[++i]);
+        } else if (strcmp(argv[i], "-a") == 0 && i + 1 < argc) {
+            alpha = atof(argv[++i]);
+        } else if (strcmp(argv[i], "-b") == 0 && i + 1 < argc) {
+            beta = atof(argv[++i]);
+        } else if (strcmp(argv[i], "-r") == 0 && i + 1 < argc) {
+            rho = atof(argv[++i]);
+        } else if (strcmp(argv[i], "-min") == 0 && i + 1 < argc) {
+            tau_min = atof(argv[++i]);
+        } else if (strcmp(argv[i], "-max") == 0 && i + 1 < argc) {
+            tau_max = atof(argv[++i]);
         } else if (strcmp(argv[i], "-v") == 0) {
             verbose = true;
         }
@@ -61,6 +67,31 @@ int main(int argc, char *argv[]) {
 
     if (time_limit <= 0) {
         fprintf(stderr, "Error: Time limit must be positive\n");
+        return 1;
+    }
+
+    if (m <= 0) {
+        fprintf(stderr, "Error: Number of ants must be positive\n");
+        return 1;
+    }
+
+    if (alpha < 0 || beta < 0) {
+        fprintf(stderr, "Error: alpha and beta must be non-negative\n");
+        return 1;
+    }
+
+    if (rho <= 0 || rho > 1) {
+        fprintf(stderr, "Error: rho must be in (0, 1]\n");
+        return 1;
+    }
+
+    if (tau_min >= tau_max) {
+        fprintf(stderr, "Error: tau_min must be less than tau_max\n");
+        return 1;
+    }
+
+    if (tau_min <= 0) {
+        fprintf(stderr, "Error: tau_min must be positive\n");
         return 1;
     }
 
@@ -91,7 +122,7 @@ int main(int argc, char *argv[]) {
             return 1;
         }
 
-        int result = AntColony(nl, time_limit, evaporation_rate, deposit_amount, proportional_deposit_type, verbose);
+        int result = MMAS(nl, time_limit, m, alpha, beta, rho, tau_min, tau_max, verbose);
 
         if (!verbose) {
             printf("%d\n", - result); // print negative for irace minimization
@@ -145,9 +176,9 @@ int main(int argc, char *argv[]) {
 
         int iterations;
 
-        // Run ILS and measure time
+        // Run MMAS and measure time
         auto start = std::chrono::high_resolution_clock::now();
-        int misp_size = AntColony(nl, time_limit, evaporation_rate, deposit_amount, proportional_deposit_type, false, &iterations);
+        int misp_size = MMAS(nl, time_limit, m, alpha, beta, rho, tau_min, tau_max, false, &iterations);
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
         double execution_time = elapsed.count();
