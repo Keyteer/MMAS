@@ -3,23 +3,25 @@
 #include <cmath>
 
 #include "NeighList.h"
-#include "PheromoneTree.h"
+#include "PheromoneArray.h"
+#include "utils.h"
 
 struct Ant{
 
     NeighList *nl;                  // neighborhood list of the graph
-    vector<int> sol;                // current solution
-    pheromoneTree *global_tree;     // reference to the global pheromone tree
-    pheromoneTree tree;             // local pheromone tree for the ant
+    MISP_Solution *sol;             // current solution
+    pheromoneArray *global_pheromones;  // reference to the global pheromone array
+    pheromoneArray pheromones;      // local pheromone array for the ant
     float alpha;                    // pheromone influence exponent
     float beta;                     // heuristic influence exponent
     float *heuristic;               // precomputed heuristic values (1/(1+degree))
 
-    Ant(NeighList *nl, pheromoneTree *tree, float alpha = 1.0f, float beta = 2.0f) : tree(*tree) {
-        this->global_tree = tree;
+    Ant(NeighList *nl, pheromoneArray *pheromones, float alpha = 1.0f, float beta = 2.0f) : pheromones(*pheromones) {
+        this->global_pheromones = pheromones;
         this->nl = nl;
         this->alpha = alpha;
         this->beta = beta;
+        this->sol = new MISP_Solution(nl);
         
         // Precompute heuristic values: η_i = 1/(1+degree_i)
         // Lower degree nodes are more attractive for MISP
@@ -30,10 +32,12 @@ struct Ant{
     }
     ~Ant(){
         delete[] heuristic;
+        delete sol;
     }
     void reset() {
-        this->tree = *global_tree;
-        sol.clear();
+        this->pheromones = *global_pheromones;
+        delete sol;
+        sol = new MISP_Solution(nl);
     }
 
     /*
@@ -48,7 +52,7 @@ struct Ant{
         
         // Initialize candidates with all valid nodes
         for (int i = 0; i < nl->n; i++) {
-            float tau = tree.getPheromone(i);
+            float tau = pheromones.getPheromone(i);
             if (tau > 0.0f) {
                 candidates.push_back(i);
                 // MMAS selection probability: τ^α * η^β
@@ -78,11 +82,11 @@ struct Ant{
             }
             
             int selectedNode = candidates[selectedIdx];
-            sol.push_back(selectedNode);
+            sol->addNode(selectedNode);
             
             // Mark selected node and its neighbors as invalid
-            tree.invalidate(selectedNode);
-            tree.invalidateVector(nl->neighborhoods[selectedNode]);
+            pheromones.invalidate(selectedNode);
+            pheromones.invalidateVector(nl->neighborhoods[selectedNode]);
             
             // Rebuild candidates list (remove invalidated nodes)
             vector<int> newCandidates;
@@ -90,7 +94,7 @@ struct Ant{
             
             for (size_t i = 0; i < candidates.size(); i++) {
                 int node = candidates[i];
-                float tau = tree.getPheromone(node);
+                float tau = pheromones.getPheromone(node);
                 if (tau > 0.0f) {
                     newCandidates.push_back(node);
                     float weight = powf(tau, alpha) * powf(heuristic[node], beta);
@@ -102,7 +106,7 @@ struct Ant{
             weights = std::move(newWeights);
         }
         
-        return sol.size();
+        return sol->size();
     }
 
     /*
@@ -121,7 +125,7 @@ struct Ant{
         MMAS: deposit amount = 1/solution_quality (or proportional to quality)
     */
     void depositInSolution(float deposit_amount) {
-        for (int node : sol)
-            global_tree->deposit(node, deposit_amount);
+        for (int node : sol->solution)
+            global_pheromones->deposit(node, deposit_amount);
     }
 };

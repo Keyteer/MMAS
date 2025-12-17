@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <cstring>
 
 struct pheromoneArray {
     /*
@@ -13,7 +14,6 @@ struct pheromoneArray {
     float tau_min;              // minimum pheromone level (MMAS)
     float tau_max;              // maximum pheromone level (MMAS)
 
-
     pheromoneArray(int n, float evaporation_rate, float tau_min = 1.0f, float tau_max = 100.0f) {
         
         this->n = n;
@@ -22,9 +22,33 @@ struct pheromoneArray {
         this->tau_max = tau_max;
 
         pheromones = new float[n];
-        for (int i = 0; i <= n; i++) {
+        for (int i = 0; i < n; i++) {
             pheromones[i] = tau_max;
         }
+    }
+
+    // Copy constructor
+    pheromoneArray(const pheromoneArray& other) {
+        n = other.n;
+        evaporation_rate = other.evaporation_rate;
+        tau_min = other.tau_min;
+        tau_max = other.tau_max;
+        pheromones = new float[n];
+        memcpy(pheromones, other.pheromones, n * sizeof(float));
+    }
+
+    // Assignment operator
+    pheromoneArray& operator=(const pheromoneArray& other) {
+        if (this != &other) {
+            delete[] pheromones;
+            n = other.n;
+            evaporation_rate = other.evaporation_rate;
+            tau_min = other.tau_min;
+            tau_max = other.tau_max;
+            pheromones = new float[n];
+            memcpy(pheromones, other.pheromones, n * sizeof(float));
+        }
+        return *this;
     }
 
     ~pheromoneArray(){
@@ -32,7 +56,7 @@ struct pheromoneArray {
     }
 
     void evaporate() {
-        for (int i = 0; i <= n; i++) {
+        for (int i = 0; i < n; i++) {
             pheromones[i] = pheromones[i] * (1.0f - evaporation_rate);
             // MMAS: clamp to tau_min
             if (pheromones[i] < tau_min) {
@@ -87,21 +111,21 @@ struct pheromoneArray {
         return pheromones[node];
     }
 
-    int gradSearch(){
-        /*
-            
-        */
-    }
-
-    int minHubSearch(){
-        /*
-            
-        */
-    }
-
-    int dynamicSearch(){
-        /*
-
-        */
-    }
+//    int gradSearch(){
+//        /*
+//            
+//        */
+//    }
+//
+//    int minHubSearch(){
+//        /*
+//            
+//        */
+//    }
+//
+//    int dynamicSearch(){
+//        /*
+//
+//        */
+//    }
 };

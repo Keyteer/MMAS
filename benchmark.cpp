@@ -4,7 +4,7 @@
 #include <chrono>
 #include <ctime>
 #include <sys/stat.h>
-#include "AntColony.h"
+#include "MMAS.h"
 #include "loader.h"
 
 
@@ -18,6 +18,7 @@ int main(int argc, char *argv[]) {
     float rho = 0.02f;              // evaporation rate
     float tau_min = 1.0f;           // MMAS: minimum pheromone level
     float tau_max = 100.0f;         // MMAS: maximum pheromone level
+    int ls_budget = 1;              // local search budget (0=off, 1=1-1 swaps, >1=also 2-1)
     bool verbose = false;           // verbose flag
 
     // Parse required arguments
@@ -29,10 +30,10 @@ int main(int argc, char *argv[]) {
 
     // Validate parameters
     if (path == nullptr) {
-        fprintf(stderr, "Usage: %s -i <path> [-t <time>] [-m <ants>] [-a <alpha>] [-b <beta>] [-r <rho>] [-min <tau_min>] [-max <tau_max>] [-v]\n", argv[0]);
+        fprintf(stderr, "Usage: %s -i <path> [-t <time>] [-m <ants>] [-a <alpha>] [-b <beta>] [-r <rho>] [-min <tau_min>] [-max <tau_max>] [-ls <budget>] [-v]\n", argv[0]);
         fprintf(stderr, "\nMandatory:\n");
         fprintf(stderr, "  -i <path>      : Path to graph instance file/directory (required)\n");
-        fprintf(stderr, "\nMAS Parameters:\n");
+        fprintf(stderr, "\nMMAS Parameters:\n");
         fprintf(stderr, "  -t <time>      : Time limit in seconds (default: %.2f)\n", time_limit);
         fprintf(stderr, "  -m <ants>      : Number of ants per iteration (default: %d)\n", m);
         fprintf(stderr, "  -a <alpha>     : Pheromone influence exponent (default: %.2f)\n", alpha);
@@ -40,6 +41,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "  -r <rho>       : Evaporation rate (default: %.2f)\n", rho);
         fprintf(stderr, "  -min <tau_min> : Minimum pheromone level (default: %.2f)\n", tau_min);
         fprintf(stderr, "  -max <tau_max> : Maximum pheromone level (default: %.2f)\n", tau_max);
+        fprintf(stderr, "  -ls <budget>   : Local search budget (0=off, 1=1-1 swaps, >1=also 2-1) (default: %d)\n", ls_budget);
         fprintf(stderr, "  -v             : Verbose output\n");
         return 1;
     }
@@ -60,6 +62,8 @@ int main(int argc, char *argv[]) {
             tau_min = atof(argv[++i]);
         } else if (strcmp(argv[i], "-max") == 0 && i + 1 < argc) {
             tau_max = atof(argv[++i]);
+        } else if (strcmp(argv[i], "-ls") == 0 && i + 1 < argc) {
+            ls_budget = atoi(argv[++i]);
         } else if (strcmp(argv[i], "-v") == 0) {
             verbose = true;
         }
@@ -122,7 +126,7 @@ int main(int argc, char *argv[]) {
             return 1;
         }
 
-        int result = MMAS(nl, time_limit, m, alpha, beta, rho, tau_min, tau_max, verbose);
+        int result = MMAS(nl, time_limit, m, alpha, beta, rho, tau_min, tau_max, ls_budget, verbose);
 
         if (!verbose) {
             printf("%d\n", - result); // print negative for irace minimization
@@ -178,7 +182,7 @@ int main(int argc, char *argv[]) {
 
         // Run MMAS and measure time
         auto start = std::chrono::high_resolution_clock::now();
-        int misp_size = MMAS(nl, time_limit, m, alpha, beta, rho, tau_min, tau_max, false, &iterations);
+        int misp_size = MMAS(nl, time_limit, m, alpha, beta, rho, tau_min, tau_max, ls_budget, false, &iterations);
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
         double execution_time = elapsed.count();

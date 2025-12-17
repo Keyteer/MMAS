@@ -67,54 +67,57 @@ void localSearch(MISP_Solution *sol, int budget) {
             continue; // start over
         }
 
+        // No 1-1 improvement found, try 2-1 swaps if budget allows
+        if (budget <= 1) {
+            // No more moves possible with this budget
+            break;
+        }
+
         // do any 2-1 swap if at least 2 budget
-        if (budget > 1) {
-            bool swapFound = false;
+        bool swapFound = false;
+        for (int i = 0; i < n; i++) {
+            if (sol->MISP_IndependentDegree[i] == 2) {
 
-            for (int i = 0; i < n; i++) {
-                if (sol->MISP_IndependentDegree[i] == 2) {
-
-                    // find the two neighbors in the solution
-                    int node_out1 = -1;
-                    int node_out2 = -1;
-                    for (int nd : sol->solution) {
-                        if (sol->graph->isNeighbor(i, nd)) {
-                            if (node_out1 == -1) {
-                                node_out1 = nd;
-                            } else {
-                                node_out2 = nd;
-                                break;
-                            }
+                // find the two neighbors in the solution
+                int node_out1 = -1;
+                int node_out2 = -1;
+                for (int nd : sol->solution) {
+                    if (sol->graph->isNeighbor(i, nd)) {
+                        if (node_out1 == -1) {
+                            node_out1 = nd;
+                        } else {
+                            node_out2 = nd;
+                            break;
                         }
                     }
-
-                    if (node_out1 == -1 || node_out2 == -1) {
-                        std::cerr << "Error: Inconsistent independent degree for node " << i << "\n";
-                        continue;
-                    }
-
-                    // apply swap
-                    sol->removeNode(node_out1);
-                    sol->removeNode(node_out2);
-                    sol->addNode(i);
-
-                    swapFound = true;
-
-                    budget--;
-
-                    break; // only one 2-1 swap per extra budget unit
                 }
-            }
 
-            if (swapFound) {
-                // start over
-                try1Adds(sol);
-                continue;
-            } else {
-                // no posible 2-1 swap found
-                // localSearch finished
-                break;
+                if (node_out1 == -1 || node_out2 == -1) {
+                    std::cerr << "Error: Inconsistent independent degree for node " << i << "\n";
+                    continue;
+                }
+
+                // apply swap
+                sol->removeNode(node_out1);
+                sol->removeNode(node_out2);
+                sol->addNode(i);
+
+                swapFound = true;
+
+                budget--;
+
+                break; // only one 2-1 swap per extra budget unit
             }
+        }
+
+        if (swapFound) {
+            // start over
+            try1Adds(sol);
+            continue;
+        } else {
+            // no posible 2-1 swap found
+            // localSearch finished
+            break;
         }
     }
 }
