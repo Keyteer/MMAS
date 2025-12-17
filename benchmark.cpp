@@ -14,7 +14,9 @@ int main(int argc, char *argv[]) {
     double time_limit = 10.0;       // default time limit seconds
     int m = 10;                     // number of ants per iteration
     float alpha = 1.0f;             // pheromone influence exponent
-    float beta = 2.0f;              // heuristic influence exponent
+    float beta = 2.0f;              // degree heuristic influence exponent
+    float gamma = 1.0f;             // degeneracy heuristic influence exponent
+    float delta = 1.0f;             // conflict heuristic influence exponent
     float rho = 0.02f;              // evaporation rate
     float tau_min = 1.0f;           // MMAS: minimum pheromone level
     float tau_max = 100.0f;         // MMAS: maximum pheromone level
@@ -30,14 +32,16 @@ int main(int argc, char *argv[]) {
 
     // Validate parameters
     if (path == nullptr) {
-        fprintf(stderr, "Usage: %s -i <path> [-t <time>] [-m <ants>] [-a <alpha>] [-b <beta>] [-r <rho>] [-min <tau_min>] [-max <tau_max>] [-ls <budget>] [-v]\n", argv[0]);
+        fprintf(stderr, "Usage: %s -i <path> [-t <time>] [-m <ants>] [-a <alpha>] [-b <beta>] [-g <gamma>] [-d <delta>] [-r <rho>] [-min <tau_min>] [-max <tau_max>] [-ls <budget>] [-v]\n", argv[0]);
         fprintf(stderr, "\nMandatory:\n");
         fprintf(stderr, "  -i <path>      : Path to graph instance file/directory (required)\n");
         fprintf(stderr, "\nMMAS Parameters:\n");
         fprintf(stderr, "  -t <time>      : Time limit in seconds (default: %.2f)\n", time_limit);
         fprintf(stderr, "  -m <ants>      : Number of ants per iteration (default: %d)\n", m);
         fprintf(stderr, "  -a <alpha>     : Pheromone influence exponent (default: %.2f)\n", alpha);
-        fprintf(stderr, "  -b <beta>      : Heuristic influence exponent (default: %.2f)\n", beta);
+        fprintf(stderr, "  -b <beta>      : Degree heuristic influence exponent (default: %.2f)\n", beta);
+        fprintf(stderr, "  -g <gamma>     : Degeneracy heuristic influence exponent (default: %.2f)\n", gamma);
+        fprintf(stderr, "  -d <delta>     : Conflict heuristic influence exponent (default: %.2f)\n", delta);
         fprintf(stderr, "  -r <rho>       : Evaporation rate (default: %.2f)\n", rho);
         fprintf(stderr, "  -min <tau_min> : Minimum pheromone level (default: %.2f)\n", tau_min);
         fprintf(stderr, "  -max <tau_max> : Maximum pheromone level (default: %.2f)\n", tau_max);
@@ -56,6 +60,10 @@ int main(int argc, char *argv[]) {
             alpha = atof(argv[++i]);
         } else if (strcmp(argv[i], "-b") == 0 && i + 1 < argc) {
             beta = atof(argv[++i]);
+        } else if (strcmp(argv[i], "-g") == 0 && i + 1 < argc) {
+            gamma = atof(argv[++i]);
+        } else if (strcmp(argv[i], "-d") == 0 && i + 1 < argc) {
+            delta = atof(argv[++i]);
         } else if (strcmp(argv[i], "-r") == 0 && i + 1 < argc) {
             rho = atof(argv[++i]);
         } else if (strcmp(argv[i], "-min") == 0 && i + 1 < argc) {
@@ -79,8 +87,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    if (alpha < 0 || beta < 0) {
-        fprintf(stderr, "Error: alpha and beta must be non-negative\n");
+    if (alpha < 0 || beta < 0 || gamma < 0 || delta < 0) {
+        fprintf(stderr, "Error: alpha, beta, gamma and delta must be non-negative\n");
         return 1;
     }
 
@@ -126,7 +134,7 @@ int main(int argc, char *argv[]) {
             return 1;
         }
 
-        int result = MMAS(nl, time_limit, m, alpha, beta, rho, tau_min, tau_max, ls_budget, verbose);
+        int result = MMAS(nl, time_limit, m, alpha, beta, gamma, delta, rho, tau_min, tau_max, ls_budget, verbose);
 
         if (!verbose) {
             printf("%d\n", - result); // print negative for irace minimization
@@ -182,7 +190,7 @@ int main(int argc, char *argv[]) {
 
         // Run MMAS and measure time
         auto start = std::chrono::high_resolution_clock::now();
-        int misp_size = MMAS(nl, time_limit, m, alpha, beta, rho, tau_min, tau_max, ls_budget, false, &iterations);
+        int misp_size = MMAS(nl, time_limit, m, alpha, beta, gamma, delta, rho, tau_min, tau_max, ls_budget, false, &iterations);
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = end - start;
         double execution_time = elapsed.count();

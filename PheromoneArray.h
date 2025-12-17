@@ -4,10 +4,6 @@
 #include <cstring>
 
 struct pheromoneArray {
-    /*
-            MMAS: Uses tau_min and tau_max bounds to prevent stagnation.
-    */
-
     int n;                      // number of leaves (nodes in the graph)
     float *pheromones;          // array storing pheromone levels
     float evaporation_rate;     // rate at which pheromones evaporate

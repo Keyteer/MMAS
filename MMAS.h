@@ -14,14 +14,24 @@ using namespace std;
     Parameters:
     - m: number of ants per iteration
     - alpha: pheromone influence exponent
-    - beta: heuristic influence exponent
+    - beta: degree heuristic influence exponent
+    - gamma: degeneracy heuristic influence exponent
+    - delta: conflict heuristic influence exponent
     - rho: evaporation rate
     - tau_min, tau_max: pheromone bounds
     - ls_budget: local search budget (0=off, 1=1-1 swaps, >1=also 2-1 swaps)
 */
-int MMAS(NeighList *nl, double time_limit, int m, float alpha, float beta, float rho,
+int MMAS(NeighList *nl, double time_limit, int m, float alpha, float beta, float gamma, float delta, float rho,
          float tau_min = 1.0f, float tau_max = 100.0f, int ls_budget = 1,
          bool verbose = false, int *iterations = nullptr) {
+
+    if (gamma != 0.0f) {
+        // Ensure degeneracy is computed
+        if (nl->degeneracy == nullptr) {
+            nl->buildDegeneracy();
+        }
+    }
+
     auto start_time = chrono::high_resolution_clock::now();
 
     int it = 0;
@@ -38,7 +48,7 @@ int MMAS(NeighList *nl, double time_limit, int m, float alpha, float beta, float
     // Create colony of m ants
     vector<Ant*> colony;
     for (int i = 0; i < m; i++) {
-        colony.push_back(new Ant(nl, &pheromones, alpha, beta));
+        colony.push_back(new Ant(nl, &pheromones, alpha, beta, gamma, delta));
     }
     
     while (chrono::duration<double>(chrono::high_resolution_clock::now() - start_time).count() < time_limit) {

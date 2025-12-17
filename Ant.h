@@ -1,3 +1,5 @@
+#pragma once
+
 #include <random>
 #include <vector>
 #include <cmath>
@@ -8,31 +10,53 @@
 
 struct Ant{
 
-    NeighList *nl;                  // neighborhood list of the graph
-    MISP_Solution *sol;             // current solution
+    NeighList *nl;                      // neighborhood list of the graph
+    MISP_Solution *sol;                 // current solution
     pheromoneArray *global_pheromones;  // reference to the global pheromone array
-    pheromoneArray pheromones;      // local pheromone array for the ant
-    float alpha;                    // pheromone influence exponent
-    float beta;                     // heuristic influence exponent
-    float *heuristic;               // precomputed heuristic values (1/(1+degree))
+    pheromoneArray pheromones;          // local pheromone array for the ant
+    float alpha;                        // pheromone influence exponent
+    float beta;                         // degree heuristic influence exponent
+    float gamma;                        // degeneracy heuristic influence exponent
+    float delta;                        // conflict heuristic influence exponent
 
-    Ant(NeighList *nl, pheromoneArray *pheromones, float alpha = 1.0f, float beta = 2.0f) : pheromones(*pheromones) {
+    // Precomputed heuristics (static during construction)
+    float *degreeH;                     // precomputed degree heuristic (if beta != 0)
+    float *degeneracyH;                 // precomputed degeneracy heuristic (if gamma != 0)
+
+    Ant(NeighList *nl, pheromoneArray *pheromones, float alpha, float beta, float gamma, float delta)
+     : pheromones(*pheromones) {
         this->global_pheromones = pheromones;
         this->nl = nl;
+        this->sol = new MISP_Solution(nl);
         this->alpha = alpha;
         this->beta = beta;
-        this->sol = new MISP_Solution(nl);
-        
-        // Precompute heuristic values: η_i = 1/(1+degree_i)
-        // Lower degree nodes are more attractive for MISP
-        heuristic = new float[nl->n];
-        for (int i = 0; i < nl->n; i++) {
-            heuristic[i] = 1.0f / (1.0f + nl->degrees[i]);
+        this->gamma = gamma;
+        this->delta = delta;
+
+        // Precompute degree heuristic if beta != 0
+        if (beta != 0.0f) {
+            degreeH = new float[nl->n];
+            for (int i = 0; i < nl->n; i++) {
+                degreeH[i] = 1.0f / powf(1.0f + nl->degrees[i], beta);
+            }
+        } else {
+            degreeH = nullptr;
+        }
+
+        // Precompute degeneracy heuristic if gamma != 0
+        if (gamma != 0.0f && nl->degeneracy != nullptr) {
+            degeneracyH = new float[nl->n];
+            for (int i = 0; i < nl->n; i++) {
+                degeneracyH[i] = 1.0f / powf(1.0f + nl->degeneracy[i], gamma);
+            }
+        } else {
+            degeneracyH = nullptr;
         }
     }
     ~Ant(){
-        delete[] heuristic;
         delete sol;
+        if (degreeH) delete[] degreeH;
+        if (degeneracyH) delete[] degeneracyH;
     }
     void reset() {
         this->pheromones = *global_pheromones;
@@ -40,26 +64,53 @@ struct Ant{
         sol = new MISP_Solution(nl);
     }
 
-    /*
-        constructSolution: constructs a solution using MMAS probabilistic selection.
-        Selects next node based on: p_i ∝ τ_i^α * η_i^β
-        where τ = pheromone, η = heuristic (1/(1+degree))
-    */
-    int constructSolution() {
-        // Build list of candidate nodes with their selection weights
-        vector<int> candidates;
-        vector<float> weights;
-        
-        // Initialize candidates with all valid nodes
-        for (int i = 0; i < nl->n; i++) {
-            float tau = pheromones.getPheromone(i);
+    // Degree heuristic (precomputed)
+    float degreeHeuristic(int node) {
+        return degreeH ? degreeH[node] : 1.0f;
+    }
+
+    // Degeneracy heuristic (precomputed)
+    float degeneracyHeuristic(int node) {
+        return degeneracyH ? degeneracyH[node] : 1.0f;
+    }
+
+    // Conflict heuristic (IndependentDegree) - dynamic, depends on current solution
+    float conflictHeuristic(int node) {
+        return delta != 0.0f ? 1.0f / powf(1.0f + sol->MISP_IndependentDegree[node], delta) : 1.0f;
+    }
+
+    float combinedHeuristic(int node) {
+        return degreeHeuristic(node) * degeneracyHeuristic(node) * conflictHeuristic(node);
+    }
+
+    // Build candidate list and weights from valid nodes in source
+    void buildWeights(vector<int>& candidates, vector<float>& weights, const vector<int>& source) {
+        candidates.clear();
+        weights.clear();
+        for (int node : source) {
+            float tau = pheromones.getPheromone(node);
             if (tau > 0.0f) {
-                candidates.push_back(i);
-                // MMAS selection probability: τ^α * η^β
-                float weight = powf(tau, alpha) * powf(heuristic[i], beta);
+                candidates.push_back(node);
+                float weight = powf(tau, alpha) * combinedHeuristic(node);
                 weights.push_back(weight);
             }
         }
+    }
+
+    /*
+        constructSolution: constructs a solution using MMAS probabilistic selection.
+        weighting pheromone levels, node degree, node degeneracy and solution conflict.
+        the weight of a node is given by: 
+        pheromones^(alpha) * degreeHeuristic^(beta) * degeneracyHeuristic^(gamma) * conflictHeuristic^(delta)
+    */
+    int constructSolution() {
+        // Initial source: all nodes
+        vector<int> allNodes(nl->n);
+        for (int i = 0; i < nl->n; i++) allNodes[i] = i;
+        
+        vector<int> candidates;
+        vector<float> weights;
+        buildWeights(candidates, weights, allNodes);
         
         while (!candidates.empty()) {
             // Calculate total weight
@@ -88,36 +139,10 @@ struct Ant{
             pheromones.invalidate(selectedNode);
             pheromones.invalidateVector(nl->neighborhoods[selectedNode]);
             
-            // Rebuild candidates list (remove invalidated nodes)
-            vector<int> newCandidates;
-            vector<float> newWeights;
-            
-            for (size_t i = 0; i < candidates.size(); i++) {
-                int node = candidates[i];
-                float tau = pheromones.getPheromone(node);
-                if (tau > 0.0f) {
-                    newCandidates.push_back(node);
-                    float weight = powf(tau, alpha) * powf(heuristic[node], beta);
-                    newWeights.push_back(weight);
-                }
-            }
-            
-            candidates = std::move(newCandidates);
-            weights = std::move(newWeights);
+            buildWeights(candidates, weights, candidates);
         }
         
         return sol->size();
-    }
-
-    /*
-        localSearch: placeholder for local search improvement.
-        TODO: Implement local search (e.g., 1-improvement, swap neighborhood)
-    */
-    void localSearch() {
-        // Placeholder for local search
-        // Possible improvements:
-        // - Try adding nodes not in solution that don't conflict
-        // - Try swapping nodes to find better configurations
     }
 
     /*
