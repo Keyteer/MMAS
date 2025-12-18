@@ -139,7 +139,9 @@ struct Ant{
             pheromones.invalidate(selectedNode);
             pheromones.invalidateVector(nl->neighborhoods[selectedNode]);
             
-            buildWeights(candidates, weights, candidates);
+            // Rebuild candidates - must copy source first since buildWeights clears it
+            vector<int> oldCandidates = candidates;
+            buildWeights(candidates, weights, oldCandidates);
         }
         
         return sol->size();
