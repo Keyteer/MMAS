@@ -1,0 +1,79 @@
+\documentclass{article}
+\usepackage[spanish,ruled,vlined]{algorithm2e}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+
+\title{Pseudo-código MMAS para MISP}
+\author{Pedro Ignacio Palacios Rossi}
+\date{Diciembre 2025}
+
+\begin{document}
+
+\begin{algorithm}[H]
+\caption{Max-Min Ant System (MMAS) para el MISP}
+\KwIn{$n$: número de nodos, $t$: tiempo máximo, $m$: número de hormigas, $\alpha$: exp feromonas, $\beta$: exp grado, $\gamma$: exp degeneración, $\delta$: exp conflicto, $\rho$: tasa de evaporación, $\tau_{min}$: feromona mínima, $\tau_{max}$: feromona máxima}
+\KwOut{$bestSize$: tamaño del mejor conjunto independiente encontrado}
+
+\BlankLine
+$bestSize \gets 0$\;
+$\tau[0..n-1] \gets \tau_{max}$\;
+
+\BlankLine
+\While{$tiempoActual() < t$}{
+
+  $iterBestSize \gets 0$\;
+  $iterBestSol \gets \emptyset$\;
+
+  \For{$k \gets 1$ \KwTo $m$}{
+    $sol_k \gets \emptyset$\;
+    $F[0..n-1] \gets \tau$\;
+    $candidatos \gets [0,n-1]$\;
+
+    \BlankLine
+    \While{exista al menos un nodo en $candidatos$}{
+      \ForEach{nodo $u$ en $candidatos$}{
+        $peso[u] \gets F[u]^\alpha \cdot \eta_{deg}[u]^\beta \cdot \eta_{degen}[u]^\gamma \cdot \eta_{conf}[u]^\delta$\;
+      }
+      \BlankLine
+      $v \gets$ selección aleatoria ponderada por $peso$\;
+      agregar $v$ a $sol_k$\;
+      \BlankLine
+      $candidatos.erase[v]$\;
+      \ForEach{$u$ en $vencindad(v)$w}{
+        $candidatos.erase[u]$\;
+      }
+    }
+    
+    \BlankLine
+    $sol_k \gets busquedaLocal(sol_k)$\;
+    
+    \BlankLine
+    \If{$|sol_k| > iterBestSize$}{
+      $iterBestSize \gets |sol_k|$\;
+      $iterBestSol \gets sol_k$\;
+    }
+  }
+  \If{$iterBestSize > bestSize$}{
+    $bestSize \gets iterBestSize$\;
+  }
+  
+  \BlankLine
+  \tcc{Evaporación de feromonas)}
+  \For{$i \gets 0$ \KwTo $n-1$}{
+    $\tau[i] \gets \tau[i] \cdot (1-\rho)$\;
+    $\tau[i] \gets \max(\tau_{min}, \tau[i])$\;
+  }
+  
+  \BlankLine
+  \tcc{Depósito de feromonas}
+  \ForEach{$u$ en $iterBestSol$}{
+    $\tau[u] \gets \tau[u] + iterBestSize$\;
+    $\tau[u] \gets \min(\tau_{max}, \tau[u])$\;
+  }
+}
+
+\Return{$bestSize$}
+\end{algorithm}
+
+\end{document}
