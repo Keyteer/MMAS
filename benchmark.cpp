@@ -12,15 +12,15 @@ int main(int argc, char *argv[]) {
     // Default MMAS parameters
     char *path = nullptr;
     double time_limit = 10.0;       // default time limit seconds
-    int m = 10;                     // number of ants per iteration
-    float alpha = 1.0f;             // pheromone influence exponent
-    float beta = 2.0f;              // degree heuristic influence exponent
-    float gamma = 1.0f;             // degeneracy heuristic influence exponent
-    float delta = 1.0f;             // conflict heuristic influence exponent
-    float rho = 0.02f;              // evaporation rate
-    float tau_min = 1.0f;           // MMAS: minimum pheromone level
-    float tau_max = 100.0f;         // MMAS: maximum pheromone level
-    int ls_budget = 1;              // local search budget (0=off, 1=1-1 swaps, >1=also 2-1)
+    int m = 20;                     // number of ants per iteration
+    float alpha = 2.0f;             // pheromone influence exponent
+    float beta = 3.0f;              // degree heuristic influence exponent
+    float gamma = 0.0f;             // degeneracy heuristic influence exponent
+    float delta = 0.1f;             // conflict heuristic influence exponent
+    float rho = 0.9272f;              // evaporation rate
+    float tau_min = 7.0768f;           // MMAS: minimum pheromone level
+    float tau_max = 522.4943f;         // MMAS: maximum pheromone level
+    int ls_budget = 5;              // local search budget (0=off, 1=1-1 swaps, >1=also 2-1)
     bool verbose = false;           // verbose flag
 
     // Parse required arguments
